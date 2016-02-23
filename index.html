@@ -9,343 +9,341 @@
     <link href="css/bootstrap.min.css" rel="stylesheet">
   </head>
   <body>
+    
     <div class="container-fluid" id="mount-point"></div>
+
     <script type="text/babel">
 
-        function fitsFilter(row, searchText, caseSensitive){
+      function fitsFilter(row, searchText, caseSensitive){
 
-          if (!caseSensitive) searchText = searchText.toLowerCase();
+        if (!caseSensitive) searchText = searchText.toLowerCase();
 
-          var name = (caseSensitive ? row.name : row.name.toLowerCase());
-          var model = (caseSensitive ? row.model : row.model.toLowerCase());
-          var manufacturer = (caseSensitive ? row.manufacturer : row.manufacturer.toLowerCase());
+        var checkArray = ['name', 'model', 'manufacturer'];
+        var filter_return = false;
 
-          if (name.indexOf(searchText) > - 1 || model.indexOf(searchText) > - 1 || manufacturer.indexOf(searchText) > - 1) {
-            return true;
-          }else{
-            return false;
+        checkArray.forEach(function(checkItem){
+          var thisItem = (caseSensitive ? row[checkItem] : row[checkItem].toLowerCase());
+          if (thisItem.indexOf(searchText) > -1) {
+            filter_return = true;
           }
+        })
+
+        return filter_return;
+      }
+
+      function colorRand(){
+        var hex = Math.floor(Math.random()*(Math.pow(16,6))).toString(16);
+        return hex;
+      }
+
+      class Passenger {
+
+        constructor(passengers) {
+          this.value = 1;
+          this.color = '#'+colorRand();
+          this.label = passengers+" pass."
+          this.total = 0;
+          this.percentage = 0;
         }
 
-        function colorRand(){
-          var hex = Math.floor(Math.random()*(16*16*16*16*16*16)).toString(16);
-          return hex;
+        set total(total_value){
+          this.percentage = Math.round(100*this.value/total_value,1);
         }
 
-        class Passenger {
+        toPie(){
+          return {
+            value: this.value,
+            color: this.color,
+            label: this.label+": "+this.percentage+"%"
+          };
+        }
+      
+      }
 
-          constructor(passengers) {
-            this.value = 1;
-            this.color = '#'+colorRand();
-            this.label = passengers+" pass."
-            this.total = 0;
-          }
+      var TableRow = React.createClass({
+        render: function() {
+          return (
+            <tr>
+              <td>{this.props.row.name}</td>
+              <td>{this.props.row.model}</td>
+              <td>{this.props.row.manufacturer}</td>
+              <td>{this.props.row.crew}</td>
+              <td>{this.props.row.passengers}</td>
+              <td>{this.props.row.hyperdrive_rating}</td>
+            </tr>
+          );
+        }
+      });
 
-          toPie(){
-            return {
-              value: this.value,
-              color: this.color,
-              label: this.label+": "+Math.floor(100*this.value/this.total)+"%"
-            };
-          }
+      var PieChart = React.createClass({
+        getInitialState: function() {
+          return {pieChart: false, ctx: false}
+        },
         
-        }
+        componentDidMount: function(){
+          var el = ReactDOM.findDOMNode(this);
+          this.state.ctx = el.getContext("2d");
+          this.state.pieChart = new Chart(this.state.ctx).Pie([]);
+        },
 
-        var TableRow = React.createClass({
-          render: function() {
-            return (
-              <tr>
-                <td>{this.props.name}</td>
-                <td>{this.props.model}</td>
-                <td>{this.props.manufacturer}</td>
-                <td>{this.props.crew}</td>
-                <td>{this.props.passengers}</td>
-                <td>{this.props.hyperdrive_rating}</td>
-              </tr>
-            );
-          }
-        });
+        componentDidUpdate: function(){
 
-        var PieChart = React.createClass({
-          getInitialState: function() {
-            return {pieChart: false, ctx: false}
-          },
-          
-          componentDidMount: function(){
-            var el = ReactDOM.findDOMNode(this);
-            this.state.ctx = el.getContext("2d");
-            this.state.pieChart = new Chart(this.state.ctx).Pie([]);
-          },
+          var passengers = [];
+          var searchText = this.props.searchText;
+          var caseSensitive = this.props.caseSensitive;
+          var counter = 0;
 
-          componentDidUpdate: function(){
-
-            var passengers = [];
-            var searchText = this.props.searchText;
-            var caseSensitive = this.props.caseSensitive;
-            var counter = 0;
-
-            this.props.rows.forEach(function(row) {
-              if(fitsFilter(row, searchText, caseSensitive) || searchText == ""){
-                counter++;
-                
-                if (!passengers[row.passengers]){
-                  passengers[row.passengers] = new Passenger(row.passengers);  
-                }else{
-                  passengers[row.passengers].value++;
-                }
-              }
-            });
-
-            var data = [];
-            passengers.forEach(function(passenger){
-              passenger.total = counter;
-              data.push(passenger.toPie());
-            });
-
-            var options = {};
-            this.state.pieChart.destroy();
-            this.state.pieChart = new Chart(this.state.ctx).Pie(data, {responsive: true});
-
-          }, 
-
-            render: function(){    
-              return (
-                  <canvas height="250"></canvas>
-              )
-            }
-          });
-
-          var TableGrid = React.createClass({
-            getInitialState: function() {
-              return {sort: 'name', order: true}
-            },
-            handleSort: function(value){
-              var order = this.state.order;
-              var sort = this.state.sort;
-              if(sort == value){
-                order = !order;
-              }else{
-                sort = value;
-                order = true;
-              }
-
-              this.setState({
-                order: order,
-                sort: sort
-              });
+          this.props.rows.forEach(function(row) {
+            if (fitsFilter(row, searchText, caseSensitive) || searchText == "") {
+              counter++;
               
-            },
-
-            render: function() {
-              var rows = [];
-              var searchText = this.props.searchText;
-              var caseSensitive = this.props.caseSensitive;
-              var order = this.state.order;
-              var sort = this.state.sort;
-
-              this.props.rows.sort(function(a,b){
-
-                if (sort === "name") {
-                  return a[sort].localeCompare(b[sort]);
-                }else{
-                  var a_sort = (a[sort] === "unknown" ? -1 : parseFloat(a[sort]));
-                  var b_sort = (b[sort] === "unknown" ? -1 : parseFloat(b[sort]));
-                  return a_sort - b_sort;
-                }
-
-              });
-
-              if (!order) {
-                this.props.rows.reverse();
-              }
-
-              this.props.rows.forEach(function(row) {                  
-                  if(fitsFilter(row, searchText, caseSensitive) || searchText == ""){
-                    rows.push(<TableRow key={row.name} name={row.name} model={row.model} manufacturer={row.manufacturer} crew={row.crew} passengers={row.passengers} hyperdrive_rating={row.hyperdrive_rating}/>);
-                  }
-              });
-
-              return (
-                
-                <table className="table table-striped">
-                  <thead>
-                    <tr>
-                      <th>
-                        <nobr><a href="#" onClick={this.handleSort.bind(this, "name")}>
-                          Name <SortButton show={"name" === this.state.sort} order={this.state.order} />
-                        </a></nobr>
-                      </th>
-                      <th>Model</th>
-                      <th>Manufacturer</th>
-                      <th>
-                        <nobr><a href="#" onClick={this.handleSort.bind(this, "crew")}>
-                        Crew <SortButton show={"crew" === this.state.sort} order={this.state.order} />
-                        </a></nobr>
-                      </th>       
-                      <th>
-                        <nobr><a href="#" onClick={this.handleSort.bind(this, "passengers")}>
-                        Passengers <SortButton show={"passengers" === this.state.sort} order={this.state.order} />
-                        </a></nobr>
-                      </th>
-                      <th>
-                        <nobr><a href="#" onClick={this.handleSort.bind(this, "hyperdrive_rating")}>
-                        Hyperdrive Rating <SortButton show={"hyperdrive_rating" === this.state.sort} order={this.state.order} />
-                        </a></nobr>
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>{rows}</tbody>
-                </table>
-
-              );
-            }
-          });
-
-          var SortButton = React.createClass({
-            render: function(){
-              if (this.props.show) {
-                if (this.props.order) {
-                  return <span className="glyphicon glyphicon-sort-by-attributes" />
-                }else{
-                  return <span className="glyphicon glyphicon-sort-by-attributes-alt" />
-                }
+              if (!passengers[row.passengers]) {
+                passengers[row.passengers] = new Passenger(row.passengers);  
               }else{
-                return null;
+                passengers[row.passengers].value++;
               }
             }
+          });
+
+          var data = [];
+          passengers.forEach(function(passenger){
+            passenger.total = counter;
+            data.push(passenger.toPie());
+          });
+
+          this.state.pieChart.destroy();
+          this.state.pieChart = new Chart(this.state.ctx).Pie(data, {responsive: true});
+
+        }, 
+
+        render: function(){    
+          return (
+              <canvas height="250"></canvas>
+          )
+        }
+      });
+
+      var TableGrid = React.createClass({
+        
+        getInitialState: function() {
+          return {sort: 'name', order: true}
+        },
+
+        handleSort: function(value){
+
+          var order = this.state.order;
+          var sort = this.state.sort;
+          
+          if(sort == value){
+            order = !order;
+          }else{
+            sort = value;
+            order = true;
+          }
+
+          this.setState({
+            order: order,
+            sort: sort
+          });
+          
+        },
+
+        render: function() {
+          var rows = [];
+          var searchText = this.props.searchText;
+          var caseSensitive = this.props.caseSensitive;
+          var order = this.state.order;
+          var sort = this.state.sort;
+
+          this.props.rows.sort(function(a,b){
+
+            if (sort === "name") {
+              return a[sort].localeCompare(b[sort]);
+            }else{
+              var a_sort = (a[sort] === "unknown" ? -1 : parseFloat(a[sort]));
+              var b_sort = (b[sort] === "unknown" ? -1 : parseFloat(b[sort]));
+              return a_sort - b_sort;
+            }
 
           });
 
-          var SearchBar = React.createClass({
-            handleChange: function(){
-//              console.log("CS",this.refs.caseSensitive.checked);
-              this.props.onUserInput(
-                this.refs.searchText.value,
-                this.refs.caseSensitive.checked
-              );
-            },
-            render: function() {
+          if (!order) {
+            this.props.rows.reverse();
+          }
 
-              var style = {
-                paddingTop: '5px'
-              };
-
-              return (
-                  <div className="row">
-                    <div className="col-sm-6">
-                      <input className="form-control" type="text" ref="searchText" onChange={this.handleChange} placeholder="Search..." />
-                    </div>
-                    <div style={style} className="col-sm-6">
-                      <label>&nbsp;
-                        <input type="checkbox" ref="caseSensitive" onChange={this.handleChange} defaultChecked /> Case-Sensitive
-                      </label>
-                    </div>
-                  </div>
-              );
-            }
-          });
-
-          var FilterableTable = React.createClass({
-            getInitialState: function() {
-              return {searchText: ""};
-            },
-            handleUserInput: function(searchText, caseSensitive) {
-              this.setState({
-                searchText: searchText,
-                caseSensitive: caseSensitive
-              });
-            },
-            render: function() {
-              return (
-                <div>
-                  <div className="row" style={{ paddingBottom: 20}}>
-                    <div className="col-sm-12">
-                      <h1>Starships</h1>
-                      <SearchBar onUserInput={this.handleUserInput} />
-                    </div>                    
-                  </div>
-                  <div className="row">
-                    <div className="col-sm-10">
-                      <TableGrid caseSensitive={this.state.caseSensitive} searchText={this.state.searchText} rows={this.props.rows} />
-                    </div>
-                    <div className="col-sm-2 text-center well">
-                      <h3>Passengers</h3>
-                      <PieChart caseSensitive={this.state.caseSensitive} searchText={this.state.searchText} rows={this.props.rows} />
-                    </div>
-                  </div>
-                </div>
-              );
-            }
-          });             
-
-        function loadData(url){
-
-          var results = [];
-          $.ajax({
-            url: url,
-            dataType: 'json',
-            cache: false,
-            success: function(data) {
-             results = results.concat(data.results);
-              if (data.next) {
-                url = data.next;
-                loadData(url);
-              }else{
-                return results;
+          this.props.rows.forEach(function(row) {                  
+              if(fitsFilter(row, searchText, caseSensitive) || searchText == ""){
+                rows.push(<TableRow key={row.name} row={row} />);
               }
-            }.bind(this),
-            error: function(xhr, status, err) {
-              console.error(status, err.toString());
-            }.bind(this)
           });
+
+          return (
+            
+            <table className="table table-striped">
+              <thead>
+                <tr>
+                  <th>
+                    <nobr><a href="#" onClick={this.handleSort.bind(this, "name")}>
+                      Name <SortButton show={"name" === this.state.sort} order={this.state.order} />
+                    </a></nobr>
+                  </th>
+                  <th>Model</th>
+                  <th>Manufacturer</th>
+                  <th>
+                    <nobr><a href="#" onClick={this.handleSort.bind(this, "crew")}>
+                      Crew <SortButton show={"crew" === this.state.sort} order={this.state.order} />
+                    </a></nobr>
+                  </th>       
+                  <th>
+                    <nobr><a href="#" onClick={this.handleSort.bind(this, "passengers")}>
+                      Passengers <SortButton show={"passengers" === this.state.sort} order={this.state.order} />
+                    </a></nobr>
+                  </th>
+                  <th>
+                    <nobr><a href="#" onClick={this.handleSort.bind(this, "hyperdrive_rating")}>
+                      Hyperdrive Rating <SortButton show={"hyperdrive_rating" === this.state.sort} order={this.state.order} />
+                    </a></nobr>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>{rows}</tbody>
+            </table>
+
+          );
+        }
+      });
+
+      var SortButton = React.createClass({
+        render: function(){
+          if (this.props.show) {
+            if (this.props.order) {
+              return <span className="glyphicon glyphicon-sort-by-attributes" />
+            }else{
+              return <span className="glyphicon glyphicon-sort-by-attributes-alt" />
+            }
+          }else{
+            return null;
+          }
         }
 
-        var StarshipPage = React.createClass({
-          getInitialState: function() {
-            return {data: []};
-          },
-          componentDidMount: function() {
-            var url = 'http://swapi.co/api/starships/?page=1'
-            var results = [];
-            var temp = this;
+      });
 
-            var calls = []
-            var url_call = function(url){
+      var SearchBar = React.createClass({
+        handleChange: function(){
+          this.props.onUserInput(
+            this.refs.searchText.value,
+            this.refs.caseSensitive.checked
+          );
+        },
+        render: function() {
 
-              $.ajax({
-                url: url,
-                dataType: 'json',
-                cache: false,
-                success: function(data) {
-                  results = results.concat(data.results);                  
-                  if (data.next) {
-                    url = data.next;
-                    calls.push(url_call(url));
-                  }else{
-                    temp.setState({
-                      data:results
-                    })
-                  }
-                }
-              });
-            }
+          var style = {
+            paddingTop: '5px'
+          };
 
-            url_call(url);
-
-          },
-          render: function() {
-            return (
-              <div className="col-sm-12">
-                <FilterableTable rows={this.state.data}/>
+          return (
+              <div className="row">
+                <div className="col-sm-6">
+                  <input className="form-control" type="text" ref="searchText" onChange={this.handleChange} placeholder="Search..." />
+                </div>
+                <div style={style} className="col-sm-6">
+                  <label>&nbsp;
+                    <input type="checkbox" ref="caseSensitive" onChange={this.handleChange} defaultChecked /> Case-Sensitive
+                  </label>
+                </div>
               </div>
-            );
-          }
-        });
+          );
+        }
+      });
 
-        ReactDOM.render(
-          <StarshipPage />,
-          document.getElementById('mount-point')
-        );
+      var FilterableTable = React.createClass({
+        getInitialState: function() {
+          return {searchText: ""};
+        },
+        handleUserInput: function(searchText, caseSensitive) {
+          this.setState({
+            searchText: searchText,
+            caseSensitive: caseSensitive
+          });
+        },
+        render: function() {
+          return (
+            <div>
+              <div className="row" style={{paddingBottom: 20}}>
+                <div className="col-sm-12">
+                  <h1>Starships</h1>
+                  <SearchBar onUserInput={this.handleUserInput} />
+                </div>
+              </div>
+              <div className="row">
+                <div className="col-lg-9 col-md-9 col-sm-12">
+                  <TableGrid caseSensitive={this.state.caseSensitive} searchText={this.state.searchText} rows={this.props.rows} />
+                </div>
+                <div className="col-lg-3 col-md-3 hidden-sm text-center well">
+                  <h3 className="hidden-sm">Passengers</h3>
+                  <PieChart caseSensitive={this.state.caseSensitive} searchText={this.state.searchText} rows={this.props.rows} />
+                </div>
+              </div>
+              <div className="visible-sm row">
+                <div className="col-sm-12 text-center">
+                  <h3>Passengers</h3>
+                  <PieChart caseSensitive={this.state.caseSensitive} searchText={this.state.searchText} rows={this.props.rows} />
+                </div>                  
+              </div>
+            </div>
+          );
+        }
+      });             
+
+
+      var StarshipPage = React.createClass({
+
+        getInitialState: function() {
+          return {data: []};
+        },
+        
+        componentDidMount: function() {
+          var url = 'http://swapi.co/api/starships/?page=1'
+          var results = [];
+          var temp_this = this;
+
+          var calls = []
+          var url_call = function(url){
+            $.ajax({
+              url: url,
+              dataType: 'json',
+              cache: false,
+              success: function(data) {
+                results = results.concat(data.results);                  
+                if (data.next) {
+                  url = data.next;
+                  calls.push(url_call(url));
+                }else{
+                  temp_this.setState({
+                    data:results
+                  })
+                }
+              }
+            })
+          }
+
+          url_call(url);
+
+        },
+        
+        render: function() {
+          return (
+            <div className="col-sm-12">
+              <FilterableTable rows={this.state.data}/>
+            </div>
+          );
+        }
+      });
+
+      ReactDOM.render(
+        <StarshipPage />,
+        document.getElementById('mount-point')
+      );
 
     </script>
   </body>
